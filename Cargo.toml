@@ -1,0 +1,20 @@
+[package]
+name = "vector_benchmarks"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# For large integers (U128) and Montgomery arithmetic.
+crypto-bigint = { version = "0.5.5", features = ["rand"] }
+# For random number generation
+rand = "0.8.5"
+# For parallelization
+rayon = "1.10.0"
+
+[dev-dependencies]
+# For benchmarking
+criterion = "0.5.1"
+
+[[bench]]
+name = "benchmarks"
+harness = false
