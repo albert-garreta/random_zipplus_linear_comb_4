@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-# For large integers (U128) and Montgomery arithmetic.
+# For large integers (U128, U192, U384).
 crypto-bigint = { version = "0.5.5", features = ["rand"] }
 # For random number generation
 rand = "0.8.5"

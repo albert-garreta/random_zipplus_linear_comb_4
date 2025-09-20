@@ -1,26 +1,25 @@
 use criterion::{criterion_group, criterion_main, Criterion, BenchmarkId, Throughput};
-// Import task1b
 use vector_benchmarks::{utils::*, task1, task1b, task2, task3, task4};
-// Import U128 and DynResidueParams.
 use crypto_bigint::{U128, modular::runtime_mod::DynResidueParams};
 use std::sync::Arc;
 
-// Define benchmark parameters (M power of 2, N multiple of 64 and power of 2)
-const M_VALUES: [usize; 1] = [1<<7]; // 256, 1024, 4096
-const N_VALUES: [usize; 1] = [1<<13]; 
+// Define benchmark parameters
+const M_VALUES: [usize; 1] = [1<<3]; // 256, 1024, 4096
+const N_VALUES: [usize; 1] = [1<<8]; 
 
-// Define LIMBS constant using U128::LIMBS.
-const LIMBS: usize = U128::LIMBS;
+const LIMBS_U128: usize = U128::LIMBS;
 
 fn bench_tasks(c: &mut Criterion) {
     let mut group = c.benchmark_group("VectorTasks");
+
+    // Initialize CRT Contexts (Excluded from benchmark)
+    let (crt_context1, crt_context2) = initialize_crt_contexts();
 
     for &m in &M_VALUES {
         for &n in &N_VALUES {
             
             let input_size = format!("m={}, n={}", m, n);
-
-            // Throughput estimation based on O(m*n) operations
+            // Throughput is O(m*n). The measured time includes the overhead of K primes and reconstruction.
             group.throughput(Throughput::Elements((m as u64 * n as u64)));
 
             // --- Data Generation (Excluded from benchmark) ---
@@ -32,29 +31,33 @@ fn bench_tasks(c: &mut Criterion) {
 
 
             // --- Task 1 Setup (Original - Bits) ---
-            let tables1 = task1::preprocess_m4r(&a);
+            // M4R Preprocessing for all primes (Excluded from benchmark)
+            let tables1 = task1::preprocess_m4r(&a, &PRIMES_TASK1);
 
-            group.bench_with_input(BenchmarkId::new("Task1 (Bits+CRT+M4R_8bit)", &input_size), &(m, n), |bencher, &(_m, _n)| {
+            group.bench_with_input(BenchmarkId::new("Task1 (Bits+FullCRT_5P+M4R_8bit)", &input_size), &(m, n), |bencher, &(_m, _n)| {
                 bencher.iter(|| {
-                    task1::task1(&b, &u_transposed_bits, m, n, &tables1)
+                    // Benchmark includes residue computation and reconstruction.
+                    task1::task1(&b, &u_transposed_bits, m, n, &tables1, &PRIMES_TASK1, &crt_context1)
                 });
             });
 
             // --- Task 1B Setup (New - Small Ints) ---
-            // M4R Preprocessing (Excluded from benchmark)
-            let tables1b = task1b::preprocess_m4r(&a);
+            // M4R Preprocessing for all primes (Excluded from benchmark)
+            let tables1b = task1b::preprocess_m4r(&a, &PRIMES_TASK1);
 
-            group.bench_with_input(BenchmarkId::new("Task1B (SmallInt+CRT+M4R_16bit)", &input_size), &(m, n), |bencher, &(_m, _n)| {
+            group.bench_with_input(BenchmarkId::new("Task1B (SmallInt+FullCRT_5P+M4R_16bit)", &input_size), &(m, n), |bencher, &(_m, _n)| {
                 bencher.iter(|| {
-                    task1b::task1b(&b, &u_packed_small_int, m, n, &tables1b)
+                    // Benchmark includes residue computation and reconstruction.
+                    task1b::task1b(&b, &u_packed_small_int, m, n, &tables1b, &PRIMES_TASK1, &crt_context1)
                 });
             });
 
 
             // --- Task 2 Setup ---
-            group.bench_with_input(BenchmarkId::new("Task2 (U32+CRT)", &input_size), &(m, n), |bencher, &(_m, _n)| {
+            group.bench_with_input(BenchmarkId::new("Task2 (U32+FullCRT_3P)", &input_size), &(m, n), |bencher, &(_m, _n)| {
                 bencher.iter(|| {
-                    task2::task2(&b, &u_u32, m, n)
+                    // Benchmark includes residue computation and reconstruction.
+                    task2::task2(&b, &u_u32, m, n, &PRIMES_TASK2, &crt_context2)
                 });
             });
 
@@ -62,7 +65,7 @@ fn bench_tasks(c: &mut Criterion) {
             let q = get_128bit_prime();
             
             // M4R Preprocessing (Excluded from benchmark)
-            let monty_params_setup: Arc<DynResidueParams<LIMBS>> = Arc::new(DynResidueParams::new(&q));
+            let monty_params_setup: Arc<DynResidueParams<LIMBS_U128>> = Arc::new(DynResidueParams::new(&q));
             let tables3 = task3::preprocess_m4r_montgomery(&a, monty_params_setup.clone());
 
             group.bench_with_input(BenchmarkId::new("Task3 (Bits+Monty+M4R)", &input_size), &(m, n), |bencher, &(_m, _n)| {
